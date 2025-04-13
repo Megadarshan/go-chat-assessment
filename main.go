@@ -13,6 +13,8 @@ import (
 //go:embed static/*
 var content embed.FS
 
+const InactiveTime int = 30
+
 type Client struct {
 	ID      string
 	MsgChan chan ChatMsg
@@ -115,7 +117,7 @@ func (r *ChatRoom) monitorInactivity() {
 			if !ok {
 				continue
 			}
-			if now.Sub(last) > (60 * time.Second) {
+			if now.Sub(last) > (time.Duration(InactiveTime) * time.Second) {
 				msg := ChatMsg{
 					Client:   id,
 					Message:  " left the chat due to inactivity",
@@ -133,8 +135,8 @@ func (r *ChatRoom) monitorInactivity() {
 			r.broadcast <- msg
 		}
 		for _, client := range inactiveClients {
-			log.Printf("Kicking [%s] inactive client", client.ID)
-			time.Sleep(2 * time.Second)
+			log.Printf("Removing client [%s] after %d seconds inactivity", client.ID, InactiveTime)
+			time.Sleep(1 * time.Second)
 			r.unregister <- client
 		}
 	}

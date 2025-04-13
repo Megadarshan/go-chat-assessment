@@ -10,7 +10,7 @@
       --chat-bg: white;
       --text: #000;
       --input-bg: white;
-      --message-receiver-bg: rgb(234, 233, 233);
+      --message-receiver-bg:  #FFFFE0;
       --message-sender-bg: #dcf8c6;
       --system-bg: #e0e0e0;
     }
@@ -20,7 +20,7 @@
       --chat-bg: #2c2c2c;
       --text: #fff;
       --input-bg: #444;
-      --message-receiver-bg: #333;
+      --message-receiver-bg: #FFFFE0;
       --message-sender-bg: #4b7553;
       --system-bg: #555;
     }
@@ -86,14 +86,16 @@
       text-align: left;
     }
 
-    .system {
-      background-color: var(--system-bg);
-      text-align: center;
-      margin: 0 auto;
-      font-style: italic;
-      font-size: 0.6em;
-      border-radius: 5px;
-    }
+.system {
+  background-color: var(--system-bg);
+  text-align: center;
+  margin: 5px auto;
+  font-style: italic;
+  font-size: 0.6em;
+  border-radius: 5px;
+  max-width: 80%;
+}
+
 
     .username {
     font-weight: none;
@@ -190,6 +192,7 @@
     let joined = false;
     let messagePollInterval;
     let evtSource;
+    let startChat = 0;
 
     const joinLeaveBtn = document.getElementById('joinLeaveBtn');
     const status = document.getElementById('status');
@@ -290,14 +293,17 @@ function startReceivingMessages() {
       console.log('Other Client message', msg.client);
         displayMessage(msg.client, msg.msg, msg.isSys, msg.time, 'received');
       }
+
       if (msg.isAct && msg.isSys && msg.client == clientId) {
-      console.log('Self Client system message', msg.client);
         displayMessage(msg.client, msg.msg, msg.isSys, msg.time, 'system');
       }
-
+       if (startChat = 0 && msg.client == clientId){
+        startChat = 1;
+       }
       if (!msg.isAct && msg.client == clientId) {
             console.log('Self inactive message', msg.client);
         displayMessage(msg.client, msg.msg, msg.isSys, msg.time, 'system');
+        startChat = 0
         joined = false;
         status.textContent = '🔴 Offline';
         joinLeaveBtn.textContent = 'Join';
@@ -322,6 +328,7 @@ function startReceivingMessages() {
 }
 
     function displayMessage(sender, message, isSystem, time, type) {
+
       const chatRow = document.createElement('div');
       chatRow.classList.add('chat-row');
 
@@ -385,8 +392,8 @@ messageBubble.appendChild(timestamp);
       chatRow.appendChild(messageBubble);
       messagesDiv.appendChild(chatRow);
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    }
 
+}
     // Theme toggle logic
 /*    const themeToggle = document.getElementById('themeToggle');
     themeToggle.addEventListener('click', () => {
