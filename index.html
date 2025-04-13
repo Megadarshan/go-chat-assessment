@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Go Chat UI</title>
+  <style>
+    :root {
+      --bg: #f4f7fc;
+      --chat-bg: white;
+      --text: #000;
+      --input-bg: white;
+      --message-receiver-bg: rgb(234, 233, 233);
+      --message-sender-bg: #dcf8c6;
+      --system-bg: #e0e0e0;
+    }
+
+    body.dark {
+      --bg: #1e1e1e;
+      --chat-bg: #2c2c2c;
+      --text: #fff;
+      --input-bg: #444;
+      --message-receiver-bg: #333;
+      --message-sender-bg: #4b7553;
+      --system-bg: #555;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+
+    .chat-container {
+      width: 400px;
+      background: var(--chat-bg);
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+      height: 80vh;
+    }
+
+    .messages {
+      flex-grow: 1;
+      overflow-y: auto;
+      padding: 10px;
+      margin-bottom: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      /* background: #f9f9f9; */
+    }
+
+    .chat-row {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .message {
+      margin: 10px 0;
+      padding: 10px 15px 20px 15px;
+      border-radius: 10px;
+      display: inline-block;
+      max-width: 80%;
+      min-width: 100px;
+      position: relative;
+    }
+
+    .sender {
+      background-color: var(--message-sender-bg);
+      align-self: flex-end;
+      margin-left: auto;
+      text-align: right;
+    }
+
+    .receiver {
+      background-color: var(--message-receiver-bg);
+      align-self: flex-start;
+      margin-right: auto;
+      text-align: left;
+    }
+
+    .system {
+      background-color: var(--system-bg);
+      text-align: center;
+      margin: 0 auto;
+      font-style: italic;
+      font-size: 0.6em;
+      border-radius: 5px;
+    }
+
+    .username {
+    font-weight: none;
+    font-size: 0.7em;
+      font-style: italic;
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    .message-text {
+      text-align: left;
+    }
+
+    .timestamp {
+      font-size: 0.6em;
+      color: gray;
+      position: absolute;
+      bottom: 5px;
+      right: 10px;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    input, button, textarea {
+      padding: 10px;
+      font-size: 14px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      background-color: var(--input-bg);
+      color: var(--text);
+    }
+
+    input {
+      flex: 1;
+    }
+
+    textarea {
+      resize: none;
+      height: 3em;
+      margin-top: 5px;
+    }
+
+    button {
+      cursor: pointer;
+      background-color: #18ae63;
+      color: white;
+      border: none;
+    }
+
+    button:hover {
+      background-color: #128a4e;
+    }
+
+    #sendBtn {
+      width: 100%;
+      margin-top: 5px;
+    }
+
+    .join-leave-btn.join {
+      background-color: #28a745;
+    }
+
+    .join-leave-btn.leave {
+      background-color: #dc3545;
+    }
+
+    #themeToggle {
+      align-self: flex-end;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="chat-container">
+    <div class="status" id="status">🔴 Offline</div>
+
+    <div class="messages" id="messages"></div>
+
+    <div class="row">
+      <input type="text" id="id" placeholder="Enter your ID" />
+      <button id="joinLeaveBtn" class="join-leave-btn join">Join</button>
+    </div>
+
+    <textarea id="message" placeholder="Enter your message" disabled></textarea>
+    <button id="sendBtn" disabled>Send</button>
+  </div>
+
+  <script>
+    let clientId = '';
+    let joined = false;
+    let messagePollInterval;
+    let evtSource;
+
+    const joinLeaveBtn = document.getElementById('joinLeaveBtn');
+    const status = document.getElementById('status');
+    const messagesDiv = document.getElementById('messages');
+    const sendBtn = document.getElementById('sendBtn');
+    const messageInput = document.getElementById('message');
+    const idInput = document.getElementById('id');
+
+    joinLeaveBtn.addEventListener('click', () => {
+      clientId = idInput.value.trim();
+      if (!clientId) {
+        alert('Please enter a valid client ID');
+        return;
+      }
+
+      if (joined) {
+        leaveChat();
+      } else {
+        joinChat();
+      }
+    });
+
+    sendBtn.addEventListener('click', sendChat);
+    messageInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendChat();
+      }
+    });
+
+    function sendChat() {
+      const message = messageInput.value.trim();
+      if (message) {
+              let sTime = new Date();
+        sendMessage(clientId, message, false);
+        /* let sTime = new Date(); */
+        displayMessage(clientId, message, false, sTime, 'sent');
+        messageInput.value = '';
+      }
+    }
+
+    function joinChat() {
+      fetch(`/join?id=${clientId}`)
+        .then(res => res.text())
+        .then(() => {
+          joined = true;
+          status.textContent = `🟢 ${clientId} Online`;
+          joinLeaveBtn.textContent = 'Leave';
+          joinLeaveBtn.classList.remove('join');
+          joinLeaveBtn.classList.add('leave');
+          sendBtn.disabled = false;
+          messageInput.disabled = false;
+          idInput.readOnly = true;
+          startReceivingMessages();
+        })
+        .catch(err => {
+          console.error('Join error:', err);
+          alert('Failed to join chat');
+        });
+    }
+
+    function leaveChat() {
+      fetch(`/leave?id=${clientId}`)
+        .then(res => res.text())
+        .then(() => {
+          joined = false;
+          status.textContent = '🔴 Offline';
+          joinLeaveBtn.textContent = 'Join';
+          joinLeaveBtn.classList.remove('leave');
+          joinLeaveBtn.classList.add('join');
+          sendBtn.disabled = true;
+          messageInput.disabled = true;
+          idInput.readOnly = false;
+        console.log('Clear Interval:', 'Left Chat');
+          clearInterval(messagePollInterval);
+        })
+        .catch(err => {
+          console.error('Leave error:', err);
+          alert('Failed to leave chat');
+        });
+    }
+
+    function sendMessage(id, message, sys) {
+      fetch(`/send?id=${id}&message=${encodeURIComponent(message)}`)
+        .catch(err => {
+          console.error('Send error:', err);
+        });
+    }
+
+function startReceivingMessages() {
+  evtSource = new EventSource(`/messages?id=${clientId}`);
+
+  evtSource.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+      console.log(`Client: ${msg.client} | IsActive: ${msg.isAct}`, `message: ${msg.msg}`);
+    if (msg.client && msg.msg) {
+      if (msg.client !== clientId) {
+      console.log('Other Client message', msg.client);
+        displayMessage(msg.client, msg.msg, msg.isSys, msg.time, 'received');
+      }
+      if (msg.isAct && msg.isSys && msg.client == clientId) {
+      console.log('Self Client system message', msg.client);
+        displayMessage(msg.client, msg.msg, msg.isSys, msg.time, 'system');
+      }
+
+      if (!msg.isAct && msg.client == clientId) {
+            console.log('Self inactive message', msg.client);
+        displayMessage(msg.client, msg.msg, msg.isSys, msg.time, 'system');
+        joined = false;
+        status.textContent = '🔴 Offline';
+        joinLeaveBtn.textContent = 'Join';
+        joinLeaveBtn.classList.remove('leave');
+        joinLeaveBtn.classList.add('join');
+        sendBtn.disabled = true;
+        messageInput.disabled = true;
+        idInput.readOnly = false;
+        evtSource.close();
+      }
+    }
+  };
+
+    evtSource.onerror = (err) => {
+    if (evtSource.readyState === EventSource.CLOSED) {
+        console.log('Stream connection closed normally.');
+    } else {
+        console.error('Steam error:', err);
+    }
+    evtSource.close();
+    };
+}
+
+    function displayMessage(sender, message, isSystem, time, type) {
+      const chatRow = document.createElement('div');
+      chatRow.classList.add('chat-row');
+
+      const messageBubble = document.createElement('div');
+      messageBubble.classList.add('message');
+
+      if (isSystem) {
+        messageBubble.classList.add('system');
+      } else if (sender === clientId) {
+        messageBubble.classList.add('sender');
+      } else {
+        messageBubble.classList.add('receiver');
+      }
+
+      if (!isSystem) {
+        const username = document.createElement('span');
+        username.classList.add('username');
+        username.textContent = sender === clientId ? 'You' : sender;
+        messageBubble.appendChild(username);
+      }
+
+      const messageText = document.createElement('div');
+      messageText.classList.add('message-text');
+      let who = '';
+      if (isSystem){
+         who = sender === clientId ? 'You' : sender;
+      }
+      messageText.textContent = who + message;
+      messageBubble.appendChild(messageText);
+
+/*      const timestamp = document.createElement('span');
+      timestamp.classList.add('timestamp');
+      const timeObj = new Date(time);
+      timestamp.textContent = timeObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      messageBubble.appendChild(timestamp);
+*/
+const timestamp = document.createElement('span');
+timestamp.classList.add('timestamp');
+
+const timeObj = new Date(time); // assuming `time` is a valid date string or timestamp
+
+const now = new Date();
+const isToday = timeObj.toDateString() === now.toDateString();
+
+const yesterday = new Date();
+yesterday.setDate(now.getDate() - 1);
+const isYesterday = timeObj.toDateString() === yesterday.toDateString();
+
+if (isToday) {
+  timestamp.textContent = 'Today ' + timeObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+} else if (isYesterday) {
+  timestamp.textContent = 'Yesterday ' + timeObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+} else {
+  timestamp.textContent =
+    timeObj.toLocaleDateString() + ' ' +
+    timeObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+messageBubble.appendChild(timestamp);
+
+      chatRow.appendChild(messageBubble);
+      messagesDiv.appendChild(chatRow);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    // Theme toggle logic
+/*    const themeToggle = document.getElementById('themeToggle');
+    themeToggle.addEventListener('click', () => {
+      document.body.classList.toggle('dark');
+      themeToggle.textContent = document.body.classList.contains('dark') ? '☀️ Light Mode' : '🌙 Toggle Theme';
+    }); */
+  </script>
+</body>
+</html>
