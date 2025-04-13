@@ -1,6 +1,7 @@
 package main
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -8,6 +9,9 @@ import (
 	"sync"
 	"time"
 )
+
+//go:embed static/*
+var content embed.FS
 
 type Client struct {
 	ID      string
@@ -296,7 +300,17 @@ func main() {
 	http.HandleFunc("/leave", leaveHandler)
 	http.HandleFunc("/messages", streamHandler)
 
-	http.Handle("/", http.FileServer(http.Dir("./")))
+	// http.Handle("/", http.FileServer(http.Dir("./")))
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		data, err := content.ReadFile("static/index.html")
+		if err != nil {
+			http.Error(w, "Index file not found", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html")
+		w.Write(data)
+	})
 
 	fmt.Println("Chat server started on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
